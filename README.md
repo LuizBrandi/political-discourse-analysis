@@ -11,3 +11,26 @@ The planned pipeline will:
 - classify speech segments as coherent or incoherent with party guidelines.
 
 The goal is to provide interpretable evidence of alignment (or misalignment) between political discourse and party agendas, supporting transparency, accountability, and future research in political communication.
+
+## Pre-processing da agenda política
+
+O script `pre_processing.py` executa as etapas de:
+
+- conversão para minúsculas;
+- remoção de stopwords (NLTK + lista adicional);
+- lematização com spaCy (`pt_core_news_lg`);
+- tokenização por arquivo `.txt`.
+
+Saída:
+
+- `data/preprocessing/tokenization/tokens/<Elemento>/<arquivo>_tokens.txt`
+
+Exemplos de execução:
+
+- Processar todos os Elementos:
+
+	`python pre_processing.py`
+
+- Processar apenas um Elemento (modo teste), ex.: UNIAO:
+
+	`python pre_processing.py --elemento UNIAO`
