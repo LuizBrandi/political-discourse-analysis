@@ -88,7 +88,8 @@ def preprocess_text(
 
 def processar_arquivo_txt(
     arquivo_txt: Path,
-    pasta_saida_elemento: Path,
+    pasta_saida_txt: Path,
+    pasta_saida_csv: Path,
     nlp: spacy.language.Language,
     stopwords_pt: set[str],
 ) -> Path:
@@ -96,11 +97,11 @@ def processar_arquivo_txt(
     preprocess_agenda, tokens = preprocess_text(texto=texto, nlp=nlp, stopwords_pt=stopwords_pt)
 
     nome_saida = f"{arquivo_txt.stem}_tokens.txt"
-    arquivo_saida = pasta_saida_elemento / nome_saida
+    arquivo_saida = pasta_saida_txt / nome_saida
     arquivo_saida.write_text("\n".join(tokens), encoding="utf-8")
 
     nome_csv = f"{arquivo_txt.stem}_preprocess.csv"
-    arquivo_csv = pasta_saida_elemento / nome_csv
+    arquivo_csv = pasta_saida_csv / nome_csv
     with arquivo_csv.open("w", encoding="utf-8", newline="") as csv_file:
         writer = csv.DictWriter(csv_file, fieldnames=["preprocess_agenda", "tokens"])
         writer.writeheader()
@@ -132,13 +133,18 @@ def processar_elemento(
 
     pasta_saida_elemento = pasta_saida_tokens / pasta_elemento.name
     pasta_saida_elemento.mkdir(parents=True, exist_ok=True)
+    pasta_saida_txt = pasta_saida_elemento / "TXT"
+    pasta_saida_csv = pasta_saida_elemento / "CSV"
+    pasta_saida_txt.mkdir(parents=True, exist_ok=True)
+    pasta_saida_csv.mkdir(parents=True, exist_ok=True)
 
     print(f"\n[Elemento] {pasta_elemento.name}")
     processados = 0
     for arquivo_txt in arquivos_txt:
         arquivo_saida = processar_arquivo_txt(
             arquivo_txt=arquivo_txt,
-            pasta_saida_elemento=pasta_saida_elemento,
+            pasta_saida_txt=pasta_saida_txt,
+            pasta_saida_csv=pasta_saida_csv,
             nlp=nlp,
             stopwords_pt=stopwords_pt,
         )
