@@ -107,14 +107,14 @@ def _normalize_party_filter(party: str | Iterable[str] | None) -> set[str] | Non
 def generate_discourse_embeddings(
     dataframe: pd.DataFrame,
     party: str | Iterable[str] | None = None,
-    text_col: str = "raw_disc",
+    text_col: str = "preprocess_disc",
     party_col: str = "partido",
     similarity_threshold: float = 0.45,
     min_sentences_per_chunk: int = 1,
     max_sentences_per_chunk: int | None = None,
     model_name: str = DEFAULT_MODEL_NAME,
     batch_size: int = 32,
-    output_dir: str = "running_files",
+    output_dir: str = "data/running_files",
     save_files: bool = True,
 ) -> tuple[pd.DataFrame, np.ndarray, str | None]:
     """
