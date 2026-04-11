@@ -104,17 +104,35 @@ def _normalize_party_filter(party: str | Iterable[str] | None) -> set[str] | Non
     return {str(p).strip().upper() for p in party}
 
 
+def _extract_period_from_discourse_filename(source_csv_name: str | None) -> tuple[str | None, str | None]:
+    """
+    Extrai o período (ini/fim) de nomes no formato:
+    political_discourses_ini_02072022_fim_29102022.csv
+    """
+    if not source_csv_name:
+        return None, None
+
+    file_name = os.path.basename(str(source_csv_name))
+    match = re.search(r"ini_(\d{8})_fim_(\d{8})", file_name)
+    if not match:
+        return None, None
+
+    dt_ini, dt_fim = match.group(1), match.group(2)
+    return dt_ini, dt_fim
+
+
 def generate_discourse_embeddings(
     dataframe: pd.DataFrame,
     party: str | Iterable[str] | None = None,
+    source_csv_name: str | None = None,
     text_col: str = "preprocess_disc",
     party_col: str = "partido",
-    similarity_threshold: float = 0.45,
+    similarity_threshold: float = 0.35,
     min_sentences_per_chunk: int = 1,
     max_sentences_per_chunk: int | None = None,
     model_name: str = DEFAULT_MODEL_NAME,
     batch_size: int = 32,
-    output_dir: str = "data/running_files",
+    output_dir: str = "data/running_files/embeddings",
     save_files: bool = True,
 ) -> tuple[pd.DataFrame, np.ndarray, str | None]:
     """
@@ -123,6 +141,8 @@ def generate_discourse_embeddings(
     Args:
         dataframe: DataFrame com os discursos.
         party: Partido (str), lista de partidos ou None para todos.
+        source_csv_name: Nome/caminho do CSV de origem dos discursos para
+            extrair período (ini/fim) e usar no nome dos arquivos de saída.
         text_col: Nome da coluna que contém o texto para segmentação.
         party_col: Nome da coluna de partido.
         similarity_threshold: Limiar de similaridade para quebra de chunk.
@@ -205,9 +225,16 @@ def generate_discourse_embeddings(
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
-        now = datetime.now().strftime("%Y%m%d_%H%M")
         party_name = "ALL" if party_filter is None else "_".join(sorted(party_filter))
-        base_name = f"discourses_embeddings_{party_name}_{now}"
+        dt_ini, dt_fim = _extract_period_from_discourse_filename(source_csv_name)
+
+        if dt_ini and dt_fim:
+            period_part = f"ini_{dt_ini}_fim_{dt_fim}"
+        else:
+            now = datetime.now().strftime("%Y%m%d_%H%M")
+            period_part = f"periodo_desconhecido_{now}"
+
+        base_name = f"discourses_embeddings_{party_name}_{period_part}"
 
         csv_path = os.path.join(output_dir, f"{base_name}.csv")
         npy_path = os.path.join(output_dir, f"{base_name}.npy")
