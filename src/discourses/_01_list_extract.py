@@ -174,16 +174,16 @@ def list_extract (DATA_INI, DATA_FIM, PAGE_SIZE = PAGE_SIZE):
                                                                               PAGE_SIZE,
                                                                               AGORA)
     print("... Salvando as informações! ...")
-    if not os.path.exists("backup"):
-        os.makedirs("backup")
-    if not os.path.exists("running_files"):
-        os.makedirs("running_files")
+    if not os.path.exists("data/backup"):
+        os.makedirs("data/backup")
+    if not os.path.exists("data/running_files"):
+        os.makedirs("data/running_files")
     running_file_name = "political_discourses_ini_{}_fim_{}.csv".format(
         re.sub("/","",DATA_INI),
         re.sub("/","",DATA_FIM)
     )
-    df.to_csv("backup/"+file_name_01,index=False)
-    df.to_csv("running_files/"+running_file_name,index=False)
+    df.to_csv("data/backup/"+file_name_01,index=False)
+    df.to_csv("data/running_files/"+running_file_name,index=False)
         
     print("... Função list_extract encerrada! ...")
     print("......................................")
