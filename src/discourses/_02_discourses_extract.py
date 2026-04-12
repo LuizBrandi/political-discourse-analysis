@@ -71,8 +71,8 @@ def discourses_extract (dataframe, FILE_NAME):
     running_file_name = "political_discourses_ini_{}_fim_{}.csv".format(dt_ini, dt_fim)
 
     print("... Salvando as informações! ...")
-    dataframe.to_csv("data/backup/"+file_name_02,index=False)
-    dataframe.to_csv("data/running_files/"+running_file_name,index=False)
+    dataframe.to_csv("data/discourses/backup/"+file_name_02,index=False)
+    dataframe.to_csv("data/discourses/running_files/"+running_file_name,index=False)
     
     print("... Função discourses_extract encerrada! ...")
     print("............................................")
