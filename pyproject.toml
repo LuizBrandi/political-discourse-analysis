@@ -17,4 +17,5 @@ dependencies = [
     "pytesseract>=0.3.13",
     "spacy>=3.8.7",
     "matplotlib>=3.10.8",
+    "embeddings>=0.0.8",
 ]

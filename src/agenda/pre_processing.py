@@ -10,7 +10,7 @@ from typing import Any
 import spacy
 from nltk.corpus import stopwords
 
-from embeddings import DEFAULT_MODEL_NAME, _load_sentence_transformer, segment_text_semantic
+from .embeddings import DEFAULT_MODEL_NAME, _load_sentence_transformer, segment_text_semantic
 
 
 STOPWORDS_ADICIONAIS = [
