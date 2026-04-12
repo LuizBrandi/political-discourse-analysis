@@ -185,8 +185,11 @@ def topics_main(
         passes=final_passes,
         iterations=final_iterations,
     )
+    topic_terms_rows = []
     for idx, topic in lda_model.print_topics(num_words=10):
         print(f"Tópico {idx}: {topic}")
+        topic_terms_rows.append({"topic": idx, "terms": topic})
+    topic_terms_df = pd.DataFrame(topic_terms_rows)
         
     ### ### ###
 
@@ -250,6 +253,7 @@ def topics_main(
     top_docs_per_topic_n.to_csv(directory_path / "lda_topN_docs_por_topico.csv", index=False, encoding="utf-8")
     # Salvar distribuição de tópicos de todos os documentos
     df_doc_topics.to_csv(directory_path / "lda_distribuicao_docs.csv", index=False, encoding="utf-8")
+    topic_terms_df.to_csv(directory_path / "lda_topicos_termos.csv", index=False, encoding="utf-8")
     
     print("... Função topics_main encerrada! ...")
     print(".....................................")

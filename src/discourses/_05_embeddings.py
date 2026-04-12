@@ -132,7 +132,7 @@ def generate_discourse_embeddings(
     max_sentences_per_chunk: int | None = None,
     model_name: str = DEFAULT_MODEL_NAME,
     batch_size: int = 32,
-    output_dir: str = "data/running_files/embeddings",
+    output_dir: str = "data/discourses/embeddings/discourses",
     save_files: bool = True,
 ) -> tuple[pd.DataFrame, np.ndarray, str | None]:
     """
@@ -222,10 +222,10 @@ def generate_discourse_embeddings(
 
     base_name = None
     if save_files:
+        party_name = "ALL" if party_filter is None else "_".join(sorted(party_filter))
+        output_dir = os.path.join(output_dir, party_name)
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-
-        party_name = "ALL" if party_filter is None else "_".join(sorted(party_filter))
         dt_ini, dt_fim = _extract_period_from_discourse_filename(source_csv_name)
 
         if dt_ini and dt_fim:

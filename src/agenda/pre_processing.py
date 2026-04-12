@@ -5,9 +5,12 @@ import csv
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 import spacy
 from nltk.corpus import stopwords
+
+from .embeddings import DEFAULT_MODEL_NAME, _load_sentence_transformer, segment_text_semantic
 
 
 STOPWORDS_ADICIONAIS = [
@@ -92,25 +95,58 @@ def processar_arquivo_txt(
     pasta_saida_csv: Path,
     nlp: spacy.language.Language,
     stopwords_pt: set[str],
+    embed_model: Any,
+    similarity_threshold: float = 0.45,
+    min_sentences_per_chunk: int = 1,
+    max_sentences_per_chunk: int | None = None,
 ) -> Path:
     texto = arquivo_txt.read_text(encoding="utf-8", errors="ignore")
-    preprocess_agenda, tokens = preprocess_text(texto=texto, nlp=nlp, stopwords_pt=stopwords_pt)
+    chunks = segment_text_semantic(
+        text=texto,
+        model=embed_model,
+        similarity_threshold=similarity_threshold,
+        min_sentences_per_chunk=min_sentences_per_chunk,
+        max_sentences_per_chunk=max_sentences_per_chunk,
+    )
 
-    nome_saida = f"{arquivo_txt.stem}_tokens.txt"
-    arquivo_saida = pasta_saida_txt / nome_saida
-    arquivo_saida.write_text("\n".join(tokens), encoding="utf-8")
+    if not chunks:
+        chunks = [texto]
 
-    nome_csv = f"{arquivo_txt.stem}_preprocess.csv"
-    arquivo_csv = pasta_saida_csv / nome_csv
-    with arquivo_csv.open("w", encoding="utf-8", newline="") as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=["preprocess_agenda", "tokens"])
-        writer.writeheader()
-        writer.writerow(
+    tokens_por_chunk: list[list[str]] = []
+    rows: list[dict[str, str]] = []
+    for chunk_id, chunk_text in enumerate(chunks):
+        preprocess_agenda, tokens = preprocess_text(
+            texto=chunk_text,
+            nlp=nlp,
+            stopwords_pt=stopwords_pt,
+        )
+        tokens_por_chunk.append(tokens)
+        rows.append(
             {
+                "chunk_id": str(chunk_id),
+                "chunk_text": chunk_text,
                 "preprocess_agenda": preprocess_agenda,
                 "tokens": json.dumps(tokens, ensure_ascii=False),
             }
         )
+
+    nome_saida = f"{arquivo_txt.stem}_tokens.txt"
+    arquivo_saida = pasta_saida_txt / nome_saida
+    # Salva um bloco de tokens por linha, preservando o mapeamento por chunk.
+    arquivo_saida.write_text(
+        "\n".join(json.dumps(tokens, ensure_ascii=False) for tokens in tokens_por_chunk),
+        encoding="utf-8",
+    )
+
+    nome_csv = f"{arquivo_txt.stem}_preprocess.csv"
+    arquivo_csv = pasta_saida_csv / nome_csv
+    with arquivo_csv.open("w", encoding="utf-8", newline="") as csv_file:
+        writer = csv.DictWriter(
+            csv_file,
+            fieldnames=["chunk_id", "chunk_text", "preprocess_agenda", "tokens"],
+        )
+        writer.writeheader()
+        writer.writerows(rows)
 
     return arquivo_saida
 
@@ -120,6 +156,10 @@ def processar_elemento(
     pasta_saida_tokens: Path,
     nlp: spacy.language.Language,
     stopwords_pt: set[str],
+    embed_model: Any,
+    similarity_threshold: float = 0.45,
+    min_sentences_per_chunk: int = 1,
+    max_sentences_per_chunk: int | None = None,
 ) -> int:
     pasta_txt = pasta_elemento / "txt"
     if not pasta_txt.exists():
@@ -147,6 +187,10 @@ def processar_elemento(
             pasta_saida_csv=pasta_saida_csv,
             nlp=nlp,
             stopwords_pt=stopwords_pt,
+            embed_model=embed_model,
+            similarity_threshold=similarity_threshold,
+            min_sentences_per_chunk=min_sentences_per_chunk,
+            max_sentences_per_chunk=max_sentences_per_chunk,
         )
         processados += 1
         print(f"  - {arquivo_txt.name} -> {arquivo_saida.name}")
@@ -161,6 +205,7 @@ def processar_todos_elementos(
 ) -> None:
     stopwords_pt = carregar_stopwords()
     nlp = carregar_modelo_spacy()
+    embed_model = _load_sentence_transformer(DEFAULT_MODEL_NAME)
 
     if elemento_teste:
         pasta_elemento = pasta_agenda_politica / elemento_teste
@@ -173,6 +218,7 @@ def processar_todos_elementos(
             pasta_saida_tokens=pasta_saida_tokens,
             nlp=nlp,
             stopwords_pt=stopwords_pt,
+            embed_model=embed_model,
         )
         print(f"\nConcluído: {total} arquivo(s) processado(s) para o elemento {elemento_teste}.")
         return
@@ -185,6 +231,7 @@ def processar_todos_elementos(
             pasta_saida_tokens=pasta_saida_tokens,
             nlp=nlp,
             stopwords_pt=stopwords_pt,
+            embed_model=embed_model,
         )
 
     print(f"\nConcluído: {total_arquivos} arquivo(s) processado(s) no total.")
