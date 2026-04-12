@@ -462,6 +462,20 @@ wheels = [
 ]
 
 [[package]]
+name = "embeddings"
+version = "0.0.8"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "requests" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b1/1f/2c6597fc0ecf694a0a6f9dd795935d85d9810c44da7ad0a506a7d021d746/embeddings-0.0.8.tar.gz", hash = "sha256:53e95fbbc737ef9d9bb171b22f126e011fe15f959e692ba6bb2ad0f808370d7a", size = 8596, upload-time = "2020-02-11T20:47:25.607Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bd/da/55d07bcdaac48b293aa88d797be3d89f6b960e2f71565dd64204fa0b6a4f/embeddings-0.0.8-py3-none-any.whl", hash = "sha256:5dccf752f88d33804c1c86a146dccc7c2fc554239bfb89086dfd490070daab65", size = 12251, upload-time = "2020-02-11T20:47:23.935Z" },
+]
+
+[[package]]
 name = "executing"
 version = "2.2.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1383,6 +1397,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "beautifulsoup4" },
+    { name = "embeddings" },
     { name = "gensim" },
     { name = "ipykernel" },
     { name = "matplotlib" },
@@ -1398,6 +1413,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.14.3" },
+    { name = "embeddings", specifier = ">=0.0.8" },
     { name = "gensim", specifier = ">=4.4.0" },
     { name = "ipykernel", specifier = ">=7.2.0" },
     { name = "matplotlib", specifier = ">=3.10.8" },
