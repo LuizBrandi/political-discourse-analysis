@@ -86,7 +86,3 @@ uv run python src/run_baseline.py \
 - **Agenda vs. speeches similarity**:
   - `data/discourses/embeddings/discourses/<PARTIDO>/topicos_similaridade_pauta.csv`
   - `data/party_agenda/embeddings/<PARTIDO>/topicos_similaridade_discursos.csv`
-
-## Baseline reference
-
-Source document: `reports/02_baseline_political_discourse_analysis_guilherme_moura_luiz_brandi.pdf`
