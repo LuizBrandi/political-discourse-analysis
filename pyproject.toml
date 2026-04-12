@@ -15,5 +15,6 @@ dependencies = [
     "sentence-transformers>=5.1.1",
     "spacy>=3.8.14",
     "pytesseract>=0.3.13",
-    "spacy>=3.8.7",
+    "matplotlib>=3.10.8",
+    "embeddings>=0.0.8",
 ]
