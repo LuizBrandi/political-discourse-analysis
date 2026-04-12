@@ -95,7 +95,7 @@ def topics_main(
     search_iterations=100,
     final_passes=30,
     final_iterations=300,
-    output_base_dir="data/running_files/lda_files",
+    output_base_dir="data/discourses/lda_files",
 ):
     print("....................................")
     print("... Função topics_main iniciada! ...")
