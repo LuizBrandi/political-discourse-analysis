@@ -150,6 +150,7 @@ def LDA_train(
 def topics_main(
 	dataframe: pd.DataFrame,
 	partido: str,
+	topic_model: str = "lda",
 	top_n: int = 5,
 	topic_start: int = 2,
 	topic_limit: int = 16,
@@ -170,6 +171,15 @@ def topics_main(
 	partido_label = str(partido).strip()
 	if not partido_label:
 		raise ValueError("O parâmetro 'partido' deve ser informado.")
+
+	model_label = str(topic_model).strip().lower()
+	if not model_label:
+		raise ValueError("O parâmetro 'topic_model' deve ser informado.")
+
+	if model_label != "lda":
+		raise NotImplementedError(
+			"Topic model ainda nao implementado. Use 'lda' por enquanto."
+		)
 
 	working_df = dataframe.reset_index(drop=True).copy()
 	if "tokens" not in working_df.columns:
@@ -280,7 +290,7 @@ def topics_main(
 		how="left",
 	).reset_index(drop=True)
 
-	output_dir = Path(output_base_dir) / partido_label
+	output_dir = Path(output_base_dir) / model_label / partido_label
 	output_dir.mkdir(parents=True, exist_ok=True)
 
 	lda_model.save(str(output_dir / "lda_model.model"))
