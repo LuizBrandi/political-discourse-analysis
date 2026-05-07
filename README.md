@@ -81,7 +81,7 @@ uv run python src/run_baseline.py \
 
 - **Agenda topics**: `data/party_agenda/topics/<PARTIDO>/`
 - **Agenda embeddings**: `data/party_agenda/embeddings/<PARTIDO>/`
-- **Speech topics**: `data/discourses/lda_files/<PARTIDO>/`
+- **Speech topics**: `data/discourses/topicos/<PARTIDO>/`
 - **Speech embeddings**: `data/discourses/embeddings/discourses/<PARTIDO>/`
 - **Agenda vs. speeches similarity**:
   - `data/discourses/embeddings/discourses/<PARTIDO>/topicos_similaridade_pauta.csv`
