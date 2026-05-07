@@ -151,6 +151,7 @@ def topics_main(
 	dataframe: pd.DataFrame,
 	partido: str,
 	topic_model: str = "lda",
+	preprocessing_version: str | None = None,
 	top_n: int = 5,
 	topic_start: int = 2,
 	topic_limit: int = 16,
@@ -180,6 +181,10 @@ def topics_main(
 		raise NotImplementedError(
 			"Topic model ainda nao implementado. Use 'lda' por enquanto."
 		)
+
+	preprocess_label = None
+	if preprocessing_version is not None:
+		preprocess_label = str(preprocessing_version).strip().lower()
 
 	working_df = dataframe.reset_index(drop=True).copy()
 	if "tokens" not in working_df.columns:
@@ -290,7 +295,10 @@ def topics_main(
 		how="left",
 	).reset_index(drop=True)
 
-	output_dir = Path(output_base_dir) / model_label / partido_label
+	if model_label == "lda" and preprocess_label in {"v1", "v2"}:
+		output_dir = Path(output_base_dir) / model_label / preprocess_label / partido_label
+	else:
+		output_dir = Path(output_base_dir) / model_label / partido_label
 	output_dir.mkdir(parents=True, exist_ok=True)
 
 	lda_model.save(str(output_dir / "lda_model.model"))
