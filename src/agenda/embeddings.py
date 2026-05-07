@@ -169,9 +169,9 @@ def generate_text_embeddings(
     if save_files:
         os.makedirs(output_dir, exist_ok=True)
 
-        now = datetime.now().strftime("%Y%m%d_%H%M")
         safe_source_id = re.sub(r"[^\w\-.]", "_", source_id)
-        base_name = f"agenda_embeddings_{safe_source_id}_{now}"
+        # Usa nome estavel para evitar gerar varios arquivos identicos.
+        base_name = f"agenda_embeddings_{safe_source_id}"
 
         csv_path = os.path.join(output_dir, f"{base_name}.csv")
         npy_path = os.path.join(output_dir, f"{base_name}.npy")
