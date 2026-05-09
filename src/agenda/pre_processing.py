@@ -4,13 +4,14 @@ import argparse
 import csv
 import json
 import re
+import unicodedata
 from pathlib import Path
 from typing import Any
 
 import spacy
 from nltk.corpus import stopwords
 
-from .embeddings import DEFAULT_MODEL_NAME, _load_sentence_transformer, segment_text_semantic
+from agenda.embeddings import DEFAULT_MODEL_NAME, _load_sentence_transformer, segment_text_semantic
 
 
 STOPWORDS_ADICIONAIS = [
@@ -65,26 +66,53 @@ def carregar_modelo_spacy() -> spacy.language.Language:
         ) from exc
 
 
+def _strip_accents(texto: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", texto)
+    return "".join(char for char in decomposed if not unicodedata.combining(char))
+
+
 def preprocess_text(
     texto: str,
     nlp: spacy.language.Language,
     stopwords_pt: set[str],
+    *,
+    remove_stopwords: bool,
+    remove_accents: bool,
+    use_lemma: bool,
 ) -> tuple[str, list[str]]:
     texto = str(texto)
 
     texto = texto.lower()
+    if remove_accents:
+        texto = _strip_accents(texto)
     texto = re.sub(r"[^a-zA-ZÀ-ÿ0-9\s]", " ", texto)
     texto = re.sub(r"\s+", " ", texto).strip()
 
-    termos_sem_stopwords = [token for token in texto.split() if token not in stopwords_pt]
-    texto_sem_stopwords = " ".join(termos_sem_stopwords)
+    # Mantem stopwords quando solicitado, mas preserva o fluxo de tokens.
+    if remove_stopwords:
+        termos_filtrados = [token for token in texto.split() if token not in stopwords_pt]
+        texto_processado = " ".join(termos_filtrados)
+    else:
+        texto_processado = texto
 
-    doc = nlp(texto_sem_stopwords)
-    tokens = [
-        token.lemma_.lower()
-        for token in doc
-        if (token.is_alpha or token.is_digit) and token.lemma_.strip() and token.lemma_.lower() not in stopwords_pt
-    ]
+    doc = nlp(texto_processado)
+    # Usa lemma no v1 e texto original no v2 para preservar flexoes.
+    if use_lemma:
+        tokens = [
+            token.lemma_.lower()
+            for token in doc
+            if (token.is_alpha or token.is_digit)
+            and token.lemma_.strip()
+            and (not remove_stopwords or token.lemma_.lower() not in stopwords_pt)
+        ]
+    else:
+        tokens = [
+            token.text.lower()
+            for token in doc
+            if (token.is_alpha or token.is_digit)
+            and token.text.strip()
+            and (not remove_stopwords or token.text.lower() not in stopwords_pt)
+        ]
     preprocess_agenda = " ".join(tokens)
     return preprocess_agenda, tokens
 
@@ -99,6 +127,10 @@ def processar_arquivo_txt(
     similarity_threshold: float = 0.45,
     min_sentences_per_chunk: int = 1,
     max_sentences_per_chunk: int | None = None,
+    *,
+    remove_stopwords: bool = True,
+    remove_accents: bool = False,
+    use_lemma: bool | None = None,
 ) -> Path:
     texto = arquivo_txt.read_text(encoding="utf-8", errors="ignore")
     chunks = segment_text_semantic(
@@ -115,10 +147,16 @@ def processar_arquivo_txt(
     tokens_por_chunk: list[list[str]] = []
     rows: list[dict[str, str]] = []
     for chunk_id, chunk_text in enumerate(chunks):
+        if use_lemma is None:
+            use_lemma = remove_stopwords
+
         preprocess_agenda, tokens = preprocess_text(
             texto=chunk_text,
             nlp=nlp,
             stopwords_pt=stopwords_pt,
+            remove_stopwords=remove_stopwords,
+            remove_accents=remove_accents,
+            use_lemma=use_lemma,
         )
         tokens_por_chunk.append(tokens)
         rows.append(
@@ -160,6 +198,10 @@ def processar_elemento(
     similarity_threshold: float = 0.45,
     min_sentences_per_chunk: int = 1,
     max_sentences_per_chunk: int | None = None,
+    *,
+    remove_stopwords: bool = True,
+    remove_accents: bool = False,
+    use_lemma: bool | None = None,
 ) -> int:
     pasta_txt = pasta_elemento / "txt"
     if not pasta_txt.exists():
@@ -191,6 +233,9 @@ def processar_elemento(
             similarity_threshold=similarity_threshold,
             min_sentences_per_chunk=min_sentences_per_chunk,
             max_sentences_per_chunk=max_sentences_per_chunk,
+            remove_stopwords=remove_stopwords,
+            remove_accents=remove_accents,
+            use_lemma=use_lemma,
         )
         processados += 1
         print(f"  - {arquivo_txt.name} -> {arquivo_saida.name}")
@@ -202,10 +247,17 @@ def processar_todos_elementos(
     pasta_agenda_politica: Path,
     pasta_saida_tokens: Path,
     elemento_teste: str | None,
+    *,
+    remove_stopwords: bool = True,
+    remove_accents: bool = False,
+    use_lemma: bool | None = None,
 ) -> None:
-    stopwords_pt = carregar_stopwords()
+    stopwords_pt = carregar_stopwords() if remove_stopwords else set()
     nlp = carregar_modelo_spacy()
     embed_model = _load_sentence_transformer(DEFAULT_MODEL_NAME)
+
+    if use_lemma is None:
+        use_lemma = remove_stopwords
 
     if elemento_teste:
         pasta_elemento = pasta_agenda_politica / elemento_teste
@@ -219,6 +271,9 @@ def processar_todos_elementos(
             nlp=nlp,
             stopwords_pt=stopwords_pt,
             embed_model=embed_model,
+            remove_stopwords=remove_stopwords,
+            remove_accents=remove_accents,
+            use_lemma=use_lemma,
         )
         print(f"\nConcluído: {total} arquivo(s) processado(s) para o elemento {elemento_teste}.")
         return
@@ -232,6 +287,9 @@ def processar_todos_elementos(
             nlp=nlp,
             stopwords_pt=stopwords_pt,
             embed_model=embed_model,
+            remove_stopwords=remove_stopwords,
+            remove_accents=remove_accents,
+            use_lemma=use_lemma,
         )
 
     print(f"\nConcluído: {total_arquivos} arquivo(s) processado(s) no total.")
@@ -253,6 +311,18 @@ def parse_args() -> argparse.Namespace:
             "(ex.: UNIAO)."
         ),
     )
+    parser.add_argument(
+        "--keep-stopwords",
+        action="store_true",
+        default=False,
+        help="Mantem stopwords durante o preprocessing.",
+    )
+    parser.add_argument(
+        "--remove-accents",
+        action="store_true",
+        default=False,
+        help="Remove acentos das palavras antes do processamento.",
+    )
     return parser.parse_args()
 
 
@@ -266,10 +336,14 @@ def main() -> None:
     )
     pasta_saida_tokens.mkdir(parents=True, exist_ok=True)
 
+    remove_stopwords = not args.keep_stopwords
+
     processar_todos_elementos(
         pasta_agenda_politica=pasta_agenda_politica,
         pasta_saida_tokens=pasta_saida_tokens,
         elemento_teste=args.elemento,
+        remove_stopwords=remove_stopwords,
+        remove_accents=args.remove_accents,
     )
 
 
