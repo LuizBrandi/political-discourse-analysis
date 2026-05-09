@@ -150,6 +150,8 @@ def LDA_train(
 def topics_main(
 	dataframe: pd.DataFrame,
 	partido: str,
+	topic_model: str = "lda",
+	preprocessing_version: str | None = None,
 	top_n: int = 5,
 	topic_start: int = 2,
 	topic_limit: int = 16,
@@ -171,6 +173,19 @@ def topics_main(
 	if not partido_label:
 		raise ValueError("O parâmetro 'partido' deve ser informado.")
 
+	model_label = str(topic_model).strip().lower()
+	if not model_label:
+		raise ValueError("O parâmetro 'topic_model' deve ser informado.")
+
+	if model_label not in {"lda", "bertopic"}:
+		raise NotImplementedError(
+			"Topic model ainda nao implementado. Use 'lda' ou 'bertopic'."
+		)
+
+	preprocess_label = None
+	if preprocessing_version is not None:
+		preprocess_label = str(preprocessing_version).strip().lower()
+
 	working_df = dataframe.reset_index(drop=True).copy()
 	if "tokens" not in working_df.columns:
 		raise ValueError("A coluna 'tokens' não existe no dataframe.")
@@ -191,6 +206,103 @@ def topics_main(
 	print(f"... Total de documentos considerados: {len(working_df)} ...")
 
 	texts = working_df["tokens"].tolist()
+
+	if model_label == "bertopic":
+		try:
+			from bertopic import BERTopic
+		except ImportError as exc:
+			raise ImportError(
+				"BERTopic nao encontrado. Instale com 'pip install bertopic'."
+			) from exc
+
+		try:
+			from sklearn.feature_extraction.text import CountVectorizer
+		except ImportError as exc:
+			raise ImportError(
+				"scikit-learn nao encontrado. Instale com 'pip install scikit-learn'."
+			) from exc
+
+		doc_texts = [" ".join(tokens) for tokens in texts]
+		if not any(doc_texts):
+			raise ValueError("Nenhum documento com texto valido para BERTopic.")
+
+		print("... Treinando modelo BERTopic ...")
+		vectorizer_model = CountVectorizer(ngram_range=(1, 2), min_df=2)
+		bertopic_model = BERTopic(vectorizer_model=vectorizer_model)
+		topics, probs = bertopic_model.fit_transform(doc_texts)
+
+		topic_terms_rows: list[dict[str, Any]] = []
+		for topic_id in sorted(set(topics)):
+			if topic_id == -1:
+				continue
+			term_weights = bertopic_model.get_topic(topic_id) or []
+			terms_formatted = " + ".join(
+				f"{weight:.3f}*\"{term}\"" for term, weight in term_weights
+			)
+			topic_terms_rows.append({"topic": int(topic_id), "terms": terms_formatted})
+		topic_terms_df = pd.DataFrame(topic_terms_rows)
+
+		doc_info = bertopic_model.get_document_info(doc_texts)
+		doc_topics_rows = []
+		for doc_id, row in doc_info.iterrows():
+			doc_topics_rows.append(
+				{
+					"doc_id": int(doc_id),
+					"topic": int(row["Topic"]),
+					"probability": float(row["Probability"]),
+				}
+			)
+		df_doc_topics = pd.DataFrame(doc_topics_rows)
+
+		top_docs_per_topic_n = pd.DataFrame(columns=["doc_id", "topic", "probability"])
+		for topic in sorted(df_doc_topics["topic"].unique()):
+			if topic == -1:
+				continue
+			tmp_df = df_doc_topics[df_doc_topics["topic"] == topic]
+			top_docs_per_topic_n = pd.concat(
+				[top_docs_per_topic_n, tmp_df.sort_values("probability", ascending=False).head(top_n)]
+			)
+
+		top_docs_per_topic_n = top_docs_per_topic_n.merge(
+			working_df[["source_file", "preprocess_agenda"]],
+			left_on="doc_id",
+			right_index=True,
+			how="left",
+		).reset_index(drop=True)
+
+		output_dir = Path(output_base_dir) / model_label / partido_label
+		output_dir.mkdir(parents=True, exist_ok=True)
+
+		bertopic_model.save(str(output_dir / "bertopic_model"))
+		top_docs_per_topic_n.to_csv(
+			output_dir / "bertopic_topN_docs_por_topico.csv",
+			index=False,
+			encoding="utf-8",
+		)
+		df_doc_topics.to_csv(
+			output_dir / "bertopic_distribuicao_docs.csv",
+			index=False,
+			encoding="utf-8",
+		)
+		topic_terms_df.to_csv(
+			output_dir / "bertopic_topicos_termos.csv",
+			index=False,
+			encoding="utf-8",
+		)
+
+		print(f"... Artefatos salvos em: {output_dir} ...")
+		print("... Função topics_main encerrada! ...")
+		print(".....................................")
+
+		return {
+			"selected_topic_num": len(topic_terms_df),
+			"top_docs_per_topic_n": top_docs_per_topic_n,
+			"doc_topics": df_doc_topics,
+			"topic_terms": topic_terms_df,
+			"coherence_scores": pd.DataFrame(),
+			"output_dir": str(output_dir),
+		}
+
 	id2word = corpora.Dictionary(texts)
 	corpus = [id2word.doc2bow(text) for text in texts]
 
@@ -280,7 +392,10 @@ def topics_main(
 		how="left",
 	).reset_index(drop=True)
 
-	output_dir = Path(output_base_dir) / partido_label
+	if model_label == "lda" and preprocess_label in {"v1", "v2"}:
+		output_dir = Path(output_base_dir) / model_label / preprocess_label / partido_label
+	else:
+		output_dir = Path(output_base_dir) / model_label / partido_label
 	output_dir.mkdir(parents=True, exist_ok=True)
 
 	lda_model.save(str(output_dir / "lda_model.model"))
