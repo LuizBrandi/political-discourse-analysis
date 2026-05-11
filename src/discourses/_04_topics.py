@@ -9,6 +9,8 @@ from gensim.models import LdaModel
 import os
 import time
 from pathlib import Path
+from datetime import datetime
+import re
 
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -86,6 +88,7 @@ def LDA_train(NUM_TOPICS, dictionary, corpus, passes=30, iterations=300):
 def topics_main(
     dataframe,
     partido=None,
+    source_csv_name: str | None = None,
     TOP_N=5,
     topic_start=2,
     topic_limit=16,
@@ -102,12 +105,28 @@ def topics_main(
 
     dataframe = dataframe.reset_index(drop=True).copy()
 
-    # Filtro opcional por partido
+    # Filtro opcional por partido (normaliza para evitar discrepâncias de acentos/formatos)
     if partido is not None and str(partido).strip() != "":
         if "partido" not in dataframe.columns:
             raise ValueError("A coluna 'partido' não existe no dataframe para aplicar o filtro.")
 
-        dataframe = dataframe[dataframe["partido"] == partido].reset_index(drop=True)
+        import unicodedata, re
+
+        def _norm_party(value: str) -> str:
+            text = unicodedata.normalize("NFKD", str(value))
+            text = "".join(ch for ch in text if not unicodedata.combining(ch))
+            text = re.sub(r"\W+", "", text)
+            return text.upper().strip()
+
+        norm_param = _norm_party(partido)
+        normalized_series = dataframe["partido"].astype(str).map(_norm_party)
+
+        # match exact normalized names or where normalized contains the param (e.g., 'UNIAO' in 'UNIAO-SOMETHING')
+        mask_isin = normalized_series == norm_param
+        mask_contains = normalized_series.apply(lambda v: norm_param in v)
+        mask = mask_isin | mask_contains
+
+        dataframe = dataframe[mask].reset_index(drop=True)
         if dataframe.empty:
             raise ValueError(f"Nenhum discurso encontrado para o partido '{partido}'.")
 
@@ -246,14 +265,31 @@ def topics_main(
         print(f"ERRO!!!: {e}")
         raise
         
-    # Salvar o modelo LDA treinado <<<<<
-    lda_model.save(str(directory_path / "lda_model.model"))
-    id2word.save(str(directory_path / "lda_dictionary.dict"))
+    # Determina período a partir do nome do CSV de origem (se fornecido)
+    def _extract_period_from_discourse_filename(source_csv_name: str | None) -> tuple[str | None, str | None]:
+        if not source_csv_name:
+            return None, None
+        file_name = os.path.basename(str(source_csv_name))
+        match = re.search(r"ini_(\d{8})_fim_(\d{8})", file_name)
+        if not match:
+            return None, None
+        return match.group(1), match.group(2)
+
+    dt_ini, dt_fim = _extract_period_from_discourse_filename(source_csv_name)
+    if dt_ini and dt_fim:
+        period_part = f"ini_{dt_ini}_fim_{dt_fim}"
+    else:
+        now = datetime.now().strftime("%Y%m%d_%H%M")
+        period_part = f"periodo_desconhecido_{now}"
+
+    # Salvar o modelo LDA treinado <<<<< (com periodo no nome)
+    lda_model.save(str(directory_path / f"lda_model_{period_part}.model"))
+    id2word.save(str(directory_path / f"lda_dictionary_{period_part}.dict"))
     # Salvar documentos mais relevantes por tópico <<<<<
-    top_docs_per_topic_n.to_csv(directory_path / "lda_topN_docs_por_topico.csv", index=False, encoding="utf-8")
+    top_docs_per_topic_n.to_csv(directory_path / f"lda_topN_docs_por_topico_{period_part}.csv", index=False, encoding="utf-8")
     # Salvar distribuição de tópicos de todos os documentos
-    df_doc_topics.to_csv(directory_path / "lda_distribuicao_docs.csv", index=False, encoding="utf-8")
-    topic_terms_df.to_csv(directory_path / "lda_topicos_termos.csv", index=False, encoding="utf-8")
+    df_doc_topics.to_csv(directory_path / f"lda_distribuicao_docs_{period_part}.csv", index=False, encoding="utf-8")
+    topic_terms_df.to_csv(directory_path / f"lda_topicos_termos_{period_part}.csv", index=False, encoding="utf-8")
     
     print("... Função topics_main encerrada! ...")
     print(".....................................")

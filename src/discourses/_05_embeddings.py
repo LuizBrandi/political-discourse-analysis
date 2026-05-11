@@ -1,9 +1,11 @@
 import os
 import re
 import importlib
+import unicodedata
 from datetime import datetime
 from typing import Iterable
 from typing import Any
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -99,9 +101,16 @@ def segment_text_semantic(
 def _normalize_party_filter(party: str | Iterable[str] | None) -> set[str] | None:
     if party is None:
         return None
+
+    def normalize(value: str) -> str:
+        text = unicodedata.normalize("NFKD", str(value))
+        text = "".join(ch for ch in text if not unicodedata.combining(ch))
+        text = re.sub(r"\W+", "", text)
+        return text.upper().strip()
+
     if isinstance(party, str):
-        return {party.strip().upper()}
-    return {str(p).strip().upper() for p in party}
+        return {normalize(party)}
+    return {normalize(p) for p in party}
 
 
 def _extract_period_from_discourse_filename(source_csv_name: str | None) -> tuple[str | None, str | None]:
@@ -172,8 +181,34 @@ def generate_discourse_embeddings(
     df = dataframe.copy()
 
     if party_filter is not None:
-        normalized_party = df[party_col].astype(str).str.upper().str.strip()
-        df = df[normalized_party.isin(party_filter)].copy()
+        normalized_party = (
+            df[party_col]
+            .astype(str)
+            .map(lambda value: unicodedata.normalize("NFKD", value))
+            .map(lambda value: "".join(ch for ch in value if not unicodedata.combining(ch)))
+            .str.replace(r"\W+", "", regex=True)
+            .str.upper()
+            .str.strip()
+        )
+        # match exact normalized names OR normalized values that contain the filter
+        mask_isin = normalized_party.isin(party_filter)
+        mask_contains = normalized_party.apply(lambda v: any(f in v for f in party_filter))
+        mask = mask_isin | mask_contains
+        df = df[mask].copy()
+
+        # diagnostics: counts before and after text_col filtering
+        try:
+            matched_count = len(df)
+            print(f"... Discurso(s) encontrados após filtro de partido: {matched_count}")
+            print(f"  party_filter: {party_filter}")
+            print("  unique_normalized_parties (amostra):", sorted(set(normalized_party.unique()))[:30])
+            # mostra algumas linhas que bateram no filtro (partido normalizado)
+            sample_matched = dataframe.loc[normalized_party.isin(party_filter)].head(5)
+            if not sample_matched.empty:
+                print("  amostra de rows que bateram no filtro (bruto):")
+                print(sample_matched[[party_col, text_col]].head(5).to_string(index=False))
+        except Exception:
+            pass
 
     df = df[df[text_col].notna()].copy()
 
@@ -202,7 +237,6 @@ def generate_discourse_embeddings(
                 }
             )
             records.append(item)
-
     embeddings_df = pd.DataFrame(records)
 
     if embeddings_df.empty:
@@ -223,7 +257,23 @@ def generate_discourse_embeddings(
     base_name = None
     if save_files:
         party_name = "ALL" if party_filter is None else "_".join(sorted(party_filter))
-        output_dir = os.path.join(output_dir, party_name)
+        # resolve output_dir relative to project root when a relative path is provided
+        def _resolve_output_dir(path_str: str) -> str:
+            if os.path.isabs(path_str):
+                return path_str
+            # try to find project root by searching for a parent that contains 'src'
+            current = Path(__file__).resolve()
+            project_root = None
+            for candidate in [current, *current.parents]:
+                if (candidate / "src").exists():
+                    project_root = candidate
+                    break
+            if project_root is None:
+                project_root = Path.cwd()
+            return str((project_root / path_str).resolve())
+
+        resolved_output_dir = _resolve_output_dir(output_dir)
+        output_dir = os.path.join(resolved_output_dir, party_name)
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         dt_ini, dt_fim = _extract_period_from_discourse_filename(source_csv_name)

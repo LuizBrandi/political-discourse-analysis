@@ -15,7 +15,7 @@ import os
 # Número de elementos retornados por página
 PAGE_SIZE = 550 # tamanhos superiores a 1350 tendem a dar problema
 
-base_url = "https://www.camara.leg.br/internet/sitaqweb/resultadoPesquisaDiscursos.asp?txIndexacao=&CurrentPage={}&BasePesq=plenario&txOrador=&txPartido=&dtInicio={}&dtFim={}&txUF=&txSessao=&listaTipoSessao=&listaTipoInterv=&inFalaPres=&listaTipoFala=&listaFaseSessao=&txAparteante=&listaEtapa=&CampoOrdenacao=dtSessao&TipoOrdenacao=DESC&PageSize={}&txTexto=&txSumario="
+base_url = "https://www.camara.leg.br/internet/sitaqweb/resultadoPesquisaDiscursos.asp?txIndexacao=&CurrentPage={}&BasePesq=plenario&txOrador=&txPartido={}&dtInicio={}&dtFim={}&txUF=&txSessao=&listaTipoSessao=&listaTipoInterv=&inFalaPres=&listaTipoFala=&listaFaseSessao=&txAparteante=&listaEtapa=&CampoOrdenacao=dtSessao&TipoOrdenacao=DESC&PageSize={}&txTexto=&txSumario="
 
 # CRAWLER SETUP:
 # Cabeçalhos para simular um navegador real
@@ -32,7 +32,7 @@ BASIC_URL = "https://www.camara.leg.br/internet/sitaqweb/"
 
 ###############################################
 
-def list_extract (DATA_INI, DATA_FIM, PAGE_SIZE = PAGE_SIZE):
+def list_extract (DATA_INI, DATA_FIM, PAGE_SIZE = PAGE_SIZE, partido=None):
     print(".....................................")
     print("... Função list_extract iniciada! ...")
     
@@ -41,7 +41,8 @@ def list_extract (DATA_INI, DATA_FIM, PAGE_SIZE = PAGE_SIZE):
     #DATA_INI = "30/06/2025" # "09/07/2025"
     #DATA_FIM = "1/07/2025" # "17/08/2025"
     
-    main_url = base_url.format(1, DATA_INI, DATA_FIM, PAGE_SIZE)
+    partido_param = partido if partido else ""
+    main_url = base_url.format(1, partido_param, DATA_INI, DATA_FIM, PAGE_SIZE)
     print("... URL base: ", main_url, "...")
     
     # Criar sessão
@@ -95,7 +96,7 @@ def list_extract (DATA_INI, DATA_FIM, PAGE_SIZE = PAGE_SIZE):
             current_page = page_num + 1
             print("... Adicionando os discursos da página: ...", current_page)
                     
-            tmp_url = base_url.format(current_page, DATA_INI, DATA_FIM, PAGE_SIZE)
+            tmp_url = base_url.format(current_page, partido_param, DATA_INI, DATA_FIM, PAGE_SIZE)
             tmp_taq_page = s.get(tmp_url)
             tmp_taq_page.encoding = "utf-8"
             
