@@ -3,6 +3,7 @@ import pandas as pd
 import spacy
 import re
 import nltk
+from pathlib import Path
 
 try:
     from nltk.corpus import stopwords
@@ -108,7 +109,7 @@ def preprocess_steps (tmp_str):
 
 ###############################
 
-def preprocessing (dataframe, FILE_NAME):
+def preprocessing (dataframe, FILE_NAME, partido=None, output_dir="data/discourses/preprocessing"):
     print("......................................")
     print("... Função preprocessing iniciada! ...")
 
@@ -127,11 +128,23 @@ def preprocessing (dataframe, FILE_NAME):
                                                                               dt_fim,
                                                                               extract_date)
 
-    running_file_name = "political_discourses_ini_{}_fim_{}.csv".format(dt_ini, dt_fim)
+    # Determina caminhos de saída baseado em partido
+    if partido:
+        backup_path = Path(output_dir) / "backup" / partido
+        running_path = Path(output_dir) / "running_files" / partido
+        running_file_name = f"political_discourses_{partido}_ini_{dt_ini}_fim_{dt_fim}.csv"
+    else:
+        backup_path = Path(output_dir) / "backup"
+        running_path = Path(output_dir) / "running_files"
+        running_file_name = f"political_discourses_ini_{dt_ini}_fim_{dt_fim}.csv"
+
+    # Cria diretórios se não existirem
+    backup_path.mkdir(parents=True, exist_ok=True)
+    running_path.mkdir(parents=True, exist_ok=True)
 
     print("... Salvando as informações! ...")
-    dataframe.to_csv("data/discourses/backup/"+file_name_03,index=False)
-    dataframe.to_csv("data/discourses/running_files/"+running_file_name,index=False)
+    dataframe.to_csv(backup_path / file_name_03, index=False)
+    dataframe.to_csv(running_path / running_file_name, index=False)
     
     print("... Função preprocessing encerrada! ...")
     print(".......................................")

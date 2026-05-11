@@ -3,6 +3,8 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 import re
+from pathlib import Path
+import os
 
 #FILE_NAME = "running_files/political_discourses.csv"
 #df = pd.read_csv(FILE_NAME)
@@ -25,7 +27,7 @@ s.headers.update(headers)
 
 ###############################
 
-def discourses_extract (dataframe, FILE_NAME):
+def discourses_extract (dataframe, FILE_NAME, partido=None, output_dir="data/discourses/raw"):
     print("...........................................")
     print("... Função discourses_extract iniciada! ...")
     
@@ -61,18 +63,28 @@ def discourses_extract (dataframe, FILE_NAME):
     dt_fim = re.search(r"(?<=fim )\d*" , FILE_NAME).group()
     extract_date = re.search(r"(?<=consulta )[\d\W]*" , FILE_NAME).group()
     
-    
-    
     file_name_02 = "discursos02RAW_{} discursos_ini {}_fim {}_consulta {}csv".format(num_discs,
                                                                               dt_ini,
                                                                               dt_fim,
                                                                               extract_date)
     
-    running_file_name = "political_discourses_ini_{}_fim_{}.csv".format(dt_ini, dt_fim)
+    # Determina caminhos de saída baseado em partido
+    if partido:
+        backup_path = Path(output_dir) / "backup" / partido
+        running_path = Path(output_dir) / "running_files" / partido
+        running_file_name = f"political_discourses_{partido}_ini_{dt_ini}_fim_{dt_fim}.csv"
+    else:
+        backup_path = Path(output_dir) / "backup"
+        running_path = Path(output_dir) / "running_files"
+        running_file_name = f"political_discourses_ini_{dt_ini}_fim_{dt_fim}.csv"
+    
+    # Cria diretórios se não existirem
+    backup_path.mkdir(parents=True, exist_ok=True)
+    running_path.mkdir(parents=True, exist_ok=True)
 
     print("... Salvando as informações! ...")
-    dataframe.to_csv("data/discourses/backup/"+file_name_02,index=False)
-    dataframe.to_csv("data/discourses/running_files/"+running_file_name,index=False)
+    dataframe.to_csv(backup_path / file_name_02, index=False)
+    dataframe.to_csv(running_path / running_file_name, index=False)
     
     print("... Função discourses_extract encerrada! ...")
     print("............................................")
