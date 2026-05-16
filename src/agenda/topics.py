@@ -150,8 +150,10 @@ def LDA_train(
 def topics_main(
 	dataframe: pd.DataFrame,
 	partido: str,
-	topic_model: str = "lda",
+	topic_model: str,
 	preprocessing_version: str | None = None,
+	embedding_texts: list[str] | None = None,
+	embedding_matrix: Any | None = None,
 	top_n: int = 5,
 	topic_start: int = 2,
 	topic_limit: int = 16,
@@ -216,20 +218,96 @@ def topics_main(
 			) from exc
 
 		try:
+			from hdbscan import HDBSCAN
+		except ImportError as exc:
+			raise ImportError(
+				"hdbscan nao encontrado. Instale com 'pip install hdbscan'."
+			) from exc
+
+		try:
+			from umap import UMAP
+		except ImportError as exc:
+			raise ImportError(
+				"umap-learn nao encontrado. Instale com 'pip install umap-learn'."
+			) from exc
+
+		try:
 			from sklearn.feature_extraction.text import CountVectorizer
 		except ImportError as exc:
 			raise ImportError(
 				"scikit-learn nao encontrado. Instale com 'pip install scikit-learn'."
 			) from exc
 
-		doc_texts = [" ".join(tokens) for tokens in texts]
-		if not any(doc_texts):
-			raise ValueError("Nenhum documento com texto valido para BERTopic.")
+		if embedding_texts is not None:
+			doc_texts = [str(text).strip() for text in embedding_texts]
+			if not doc_texts or not all(doc_texts):
+				raise ValueError("Documentos de embeddings invalidos para BERTopic.")
+		else:
+			doc_texts = [" ".join(tokens) for tokens in texts]
+			if not any(doc_texts):
+				raise ValueError("Nenhum documento com texto valido para BERTopic.")
+
+		n_docs = len(doc_texts)
+		if n_docs < 2:
+			raise ValueError(
+				"Poucos documentos para BERTopic. Gere mais chunks antes de treinar."
+			)
 
 		print("... Treinando modelo BERTopic ...")
-		vectorizer_model = CountVectorizer(ngram_range=(1, 2), min_df=2)
-		bertopic_model = BERTopic(vectorizer_model=vectorizer_model)
-		topics, probs = bertopic_model.fit_transform(doc_texts)
+		if embedding_texts is not None:
+			doc_metadata = pd.DataFrame(
+				{
+					"source_file": ["embedding_chunks"] * len(doc_texts),
+					"preprocess_agenda": [""] * len(doc_texts),
+				}
+			)
+		else:
+			doc_metadata = working_df[["source_file", "preprocess_agenda"]].reset_index(drop=True)
+		if embedding_matrix is not None and len(embedding_matrix) != len(doc_texts):
+			raise ValueError(
+				"Quantidade de embeddings nao corresponde ao numero de documentos."
+			)
+		min_df_val = 1 if n_docs <= 20 else 2
+		vectorizer_model = CountVectorizer(ngram_range=(1, 2), min_df=min_df_val)
+		n_neighbors = max(2, min(15, n_docs - 1))
+		n_components = max(2, min(5, n_docs - 2))
+		umap_model = UMAP(
+			n_neighbors=n_neighbors,
+			n_components=n_components,
+			metric="cosine",
+			init="random",
+			random_state=42,
+		)
+		min_cluster_size = max(2, min(10, max(2, n_docs // 5 + 1)))
+		min_samples = max(1, min(5, max(1, n_docs // 10 + 1)))
+		hdbscan_model = HDBSCAN(
+			min_cluster_size=min_cluster_size,
+			min_samples=min_samples,
+			allow_single_cluster=True,
+			prediction_data=False,
+		)
+		if embedding_matrix is not None:
+			bertopic_model = BERTopic(
+				vectorizer_model=vectorizer_model,
+				embedding_model=None,
+				umap_model=umap_model,
+				hdbscan_model=hdbscan_model,
+			)
+		else:
+			bertopic_model = BERTopic(
+				vectorizer_model=vectorizer_model,
+				umap_model=umap_model,
+				hdbscan_model=hdbscan_model,
+			)
+		try:
+			if embedding_matrix is not None:
+				topics, probs = bertopic_model.fit_transform(doc_texts, embeddings=embedding_matrix)
+			else:
+				topics, probs = bertopic_model.fit_transform(doc_texts)
+		except (ValueError, RuntimeError) as exc:
+			raise ValueError(
+				f"BERTopic falhou para '{partido_label}' ({n_docs} docs): {exc}"
+			) from exc
 
 		topic_terms_rows: list[dict[str, Any]] = []
 		for topic_id in sorted(set(topics)):
@@ -264,7 +342,7 @@ def topics_main(
 			)
 
 		top_docs_per_topic_n = top_docs_per_topic_n.merge(
-			working_df[["source_file", "preprocess_agenda"]],
+			doc_metadata,
 			left_on="doc_id",
 			right_index=True,
 			how="left",

@@ -17,4 +17,7 @@ dependencies = [
     "pytesseract>=0.3.13",
     "matplotlib>=3.10.8",
     "embeddings>=0.0.8",
+    "plotly>=6.7.0",
+    "nbformat>=5.10.4",
+    "bertopic>=0.17.4",
 ]
