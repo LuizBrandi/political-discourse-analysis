@@ -147,6 +147,62 @@ def LDA_train(
 	)
 
 
+def _build_umap_model(n_docs: int, UMAP: Any) -> Any:
+	if n_docs <= 5:
+		return UMAP(
+			n_neighbors=max(2, n_docs - 1),
+			n_components=2,
+			min_dist=0.0,
+			metric="cosine",
+			init="random",
+			random_state=42,
+		)
+	if n_docs <= 15:
+		return UMAP(
+			n_neighbors=min(5, n_docs - 1),
+			n_components=min(3, n_docs - 2),
+			min_dist=0.0,
+			metric="cosine",
+			init="random",
+			random_state=42,
+		)
+	return UMAP(
+		n_neighbors=min(15, n_docs - 1),
+		n_components=min(10, n_docs - 2),
+		min_dist=0.0,
+		metric="cosine",
+		init="spectral",
+		random_state=42,
+	)
+
+
+def _build_hdbscan_model(n_docs: int, HDBSCAN: Any) -> Any:
+	if n_docs <= 10:
+		min_cluster_size, min_samples = 2, 1
+	elif n_docs <= 30:
+		min_cluster_size, min_samples = 3, 2
+	else:
+		min_cluster_size = max(5, int(n_docs * 0.05))
+		min_samples = max(2, int(min_cluster_size * 0.5))
+	return HDBSCAN(
+		min_cluster_size=min_cluster_size,
+		min_samples=min_samples,
+		metric="euclidean",
+		cluster_selection_method="eom",
+		prediction_data=True,
+	)
+
+
+def _build_vectorizer_model(n_docs: int, CountVectorizer: Any) -> Any:
+	if n_docs <= 20:
+		min_df, max_df = 1, 1.0
+	elif n_docs <= 100:
+		min_df, max_df = 2, 0.90
+	else:
+		min_df, max_df = 3, 0.85
+	return CountVectorizer(ngram_range=(1, 3), min_df=min_df, max_df=max_df)
+
+
 def topics_main(
 	dataframe: pd.DataFrame,
 	partido: str,
@@ -154,6 +210,7 @@ def topics_main(
 	preprocessing_version: str | None = None,
 	embedding_texts: list[str] | None = None,
 	embedding_matrix: Any | None = None,
+	sentence_model_name: str = "BAAI/bge-m3",
 	top_n: int = 5,
 	topic_start: int = 2,
 	topic_limit: int = 16,
@@ -203,7 +260,7 @@ def topics_main(
 
 	if working_df.empty:
 		raise ValueError("Nenhum documento com tokens válidos após o parse da coluna 'tokens'.")
-
+	
 	print(f"... Partido: {partido_label} ...")
 	print(f"... Total de documentos considerados: {len(working_df)} ...")
 
@@ -245,6 +302,13 @@ def topics_main(
 				"bertopic[representation] nao encontrado. Instale com 'pip install bertopic[representation]'."
 			) from exc
 
+		try:
+			from sentence_transformers import SentenceTransformer
+		except ImportError as exc:
+			raise ImportError(
+				"sentence-transformers nao encontrado. Instale com 'pip install sentence-transformers'."
+			) from exc
+
 		if embedding_texts is not None:
 			doc_texts = [str(text).strip() for text in embedding_texts]
 			if not doc_texts or not all(doc_texts):
@@ -274,51 +338,52 @@ def topics_main(
 			raise ValueError(
 				"Quantidade de embeddings nao corresponde ao numero de documentos."
 			)
-		vectorizer_model = CountVectorizer(
-			ngram_range=(1, 3),
-			min_df=2,
-			max_df=0.85,
-		)
-		umap_model = UMAP(
-			n_neighbors=15,
-			n_components=10,
-			min_dist=0.0,
-			metric="cosine",
-			random_state=42,
-		)
-		min_cluster_size = max(5, int(n_docs * 0.08))
-		min_samples = max(1, min(5, max(1, n_docs // 10 + 1)))
-		hdbscan_model = HDBSCAN(
-			min_cluster_size=min_cluster_size,
-			min_samples=min_samples,
-			allow_single_cluster=True,
-			prediction_data=False,
-		)
+		vectorizer_model = _build_vectorizer_model(n_docs, CountVectorizer)
+		umap_model = _build_umap_model(n_docs, UMAP)
+		hdbscan_model = _build_hdbscan_model(n_docs, HDBSCAN)
 		representation_model = KeyBERTInspired()
-		if embedding_matrix is not None:
-			bertopic_model = BERTopic(
-				vectorizer_model=vectorizer_model,
-				embedding_model=None,
-				umap_model=umap_model,
-				hdbscan_model=hdbscan_model,
-				representation_model=representation_model,
-			)
-		else:
-			bertopic_model = BERTopic(
-				vectorizer_model=vectorizer_model,
-				umap_model=umap_model,
-				hdbscan_model=hdbscan_model,
-				representation_model=representation_model,
-			)
+
+		print(f"... Carregando embedding model: {sentence_model_name} ...")
+		sentence_model = SentenceTransformer(sentence_model_name)
+		print(f"... CountVectorizer min_df={vectorizer_model.min_df}, max_df={vectorizer_model.max_df} ...")
+		print(f"... UMAP n_neighbors={umap_model.n_neighbors}, n_components={umap_model.n_components}, init={umap_model.init} ...")
+		print(f"... HDBSCAN min_cluster_size={hdbscan_model.min_cluster_size}, min_samples={hdbscan_model.min_samples} ...")
+
+		bertopic_model = BERTopic(
+			embedding_model=sentence_model,
+			vectorizer_model=vectorizer_model,
+			umap_model=umap_model,
+			hdbscan_model=hdbscan_model,
+			representation_model=representation_model,
+			nr_topics="auto",
+		)
+
+		_embeddings = embedding_matrix if embedding_matrix is not None else None
 		try:
-			if embedding_matrix is not None:
-				topics, probs = bertopic_model.fit_transform(doc_texts, embeddings=embedding_matrix)
+			if _embeddings is not None:
+				topics, probs = bertopic_model.fit_transform(doc_texts, embeddings=_embeddings)
 			else:
 				topics, probs = bertopic_model.fit_transform(doc_texts)
-		except (ValueError, RuntimeError) as exc:
-			raise ValueError(
-				f"BERTopic falhou para '{partido_label}' ({n_docs} docs): {exc}"
-			) from exc
+		except (ValueError, RuntimeError, TypeError) as exc:
+			print(f"[WARN] Fallback UMAP acionado para '{partido_label}': {exc}")
+			fallback_umap = UMAP(
+				n_neighbors=2,
+				n_components=2,
+				min_dist=0.0,
+				metric="cosine",
+				init="random",
+				random_state=42,
+			)
+			bertopic_model.umap_model = fallback_umap
+			try:
+				if _embeddings is not None:
+					topics, probs = bertopic_model.fit_transform(doc_texts, embeddings=_embeddings)
+				else:
+					topics, probs = bertopic_model.fit_transform(doc_texts)
+			except (ValueError, RuntimeError, TypeError) as exc2:
+				raise ValueError(
+					f"BERTopic falhou para '{partido_label}' ({n_docs} docs) mesmo com fallback: {exc2}"
+				) from exc2
 
 		topic_terms_rows: list[dict[str, Any]] = []
 		for topic_id in sorted(set(topics)):
