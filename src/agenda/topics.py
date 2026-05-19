@@ -238,6 +238,13 @@ def topics_main(
 				"scikit-learn nao encontrado. Instale com 'pip install scikit-learn'."
 			) from exc
 
+		try:
+			from bertopic.representation import KeyBERTInspired
+		except ImportError as exc:
+			raise ImportError(
+				"bertopic[representation] nao encontrado. Instale com 'pip install bertopic[representation]'."
+			) from exc
+
 		if embedding_texts is not None:
 			doc_texts = [str(text).strip() for text in embedding_texts]
 			if not doc_texts or not all(doc_texts):
@@ -267,18 +274,19 @@ def topics_main(
 			raise ValueError(
 				"Quantidade de embeddings nao corresponde ao numero de documentos."
 			)
-		min_df_val = 1 if n_docs <= 20 else 2
-		vectorizer_model = CountVectorizer(ngram_range=(1, 2), min_df=min_df_val)
-		n_neighbors = max(2, min(15, n_docs - 1))
-		n_components = max(2, min(5, n_docs - 2))
+		vectorizer_model = CountVectorizer(
+			ngram_range=(1, 3),
+			min_df=2,
+			max_df=0.85,
+		)
 		umap_model = UMAP(
-			n_neighbors=n_neighbors,
-			n_components=n_components,
+			n_neighbors=15,
+			n_components=10,
+			min_dist=0.0,
 			metric="cosine",
-			init="random",
 			random_state=42,
 		)
-		min_cluster_size = max(2, min(10, max(2, n_docs // 5 + 1)))
+		min_cluster_size = max(5, int(n_docs * 0.08))
 		min_samples = max(1, min(5, max(1, n_docs // 10 + 1)))
 		hdbscan_model = HDBSCAN(
 			min_cluster_size=min_cluster_size,
@@ -286,18 +294,21 @@ def topics_main(
 			allow_single_cluster=True,
 			prediction_data=False,
 		)
+		representation_model = KeyBERTInspired()
 		if embedding_matrix is not None:
 			bertopic_model = BERTopic(
 				vectorizer_model=vectorizer_model,
 				embedding_model=None,
 				umap_model=umap_model,
 				hdbscan_model=hdbscan_model,
+				representation_model=representation_model,
 			)
 		else:
 			bertopic_model = BERTopic(
 				vectorizer_model=vectorizer_model,
 				umap_model=umap_model,
 				hdbscan_model=hdbscan_model,
+				representation_model=representation_model,
 			)
 		try:
 			if embedding_matrix is not None:
