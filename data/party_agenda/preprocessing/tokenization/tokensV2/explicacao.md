@@ -2,5 +2,4 @@
 
 - preprocessing:
 
-- sem remover stopwords
-- lemmatizacao
+- V2: mantem stopwords, remove acentos, não usa lemmatizacão

@@ -32,8 +32,8 @@ Entradas:
 - TXT dos partidos (data/party_agenda/party/<PARTIDO>/txt)
 
 Variantes:
-- V1: remove stopwords, mantem acentos
-- V2: mantem stopwords, remove acentos
+- V1: remove stopwords, mantem acentos, usa lemmatizacão
+- V2: mantem stopwords, remove acentos, não usa lemmatizacão
 
 Saidas:
 - V1: [data/party_agenda/preprocessing/tokenization/tokens](../data/party_agenda/preprocessing/tokenization/tokens)

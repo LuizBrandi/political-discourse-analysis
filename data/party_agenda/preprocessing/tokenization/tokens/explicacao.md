@@ -1,6 +1,4 @@
 ## TOKENS V1
 
 - preprocessing:
-
-- removendo stopwords
-- lemmatizacao
+- V1: remove stopwords, mantem acentos, usa lemmatizacão

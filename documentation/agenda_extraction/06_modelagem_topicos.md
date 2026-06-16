@@ -58,9 +58,12 @@ Os parâmetros de UMAP e HDBSCAN são ajustados automaticamente com base no núm
 
 ### Para LDA
 
-| Localização | Formato | Descrição |
-|-------------|---------|-----------|
-| `data/party_agenda/preprocessing/tokenization/tokens/{PARTIDO}/CSV/*.csv` | CSV | Tokens pré-processados da Etapa 3 |
+O caminho de entrada do LDA depende de `preprocessing_version` definido na Etapa 1. O notebook foi executado tanto com `"v1"` quanto com `"v2"`, gerando dois conjuntos independentes de tópicos LDA — refletidos nos subdiretórios `topics/lda/v1/` e `topics/lda/v2/` dos dados de saída.
+
+| Versão | Localização | Formato | Descrição |
+|--------|-------------|---------|-----------|
+| `v1` | `data/party_agenda/preprocessing/tokenization/tokens/{PARTIDO}/CSV/*.csv` | CSV | Tokens sem stopwords, lematizados (spaCy) |
+| `v2` | `data/party_agenda/preprocessing/tokenization/tokensV2/{PARTIDO}/CSV/*.csv` | CSV | Tokens com stopwords, sem lematização, sem acentos |
 
 ### Para BERTopic
 
